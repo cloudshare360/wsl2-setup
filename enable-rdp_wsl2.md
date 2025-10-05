@@ -1,90 +1,79 @@
-Here’s the **recommended way to install Google Chrome on Ubuntu** — using the official Google repository for automatic updates:
+✅ Nice — you’re almost there.
+That error —
+
+> `powershell.exe: command not found`
+> means the script is being run **inside WSL**, but WSL doesn’t recognize Windows commands like `powershell.exe` by default unless the environment path is set correctly.
+
+Let’s fix it the clean and modern way 👇
 
 ---
 
-### ✅ **Method: Install Google Chrome via Official APT Repository**
+## 🧠 What’s Happening
 
-#### 1. **Download and add Google’s signing key**
+* WSL Ubuntu doesn’t know where to find `powershell.exe`.
+* We’ll fix it by:
+
+  1. Using the full Windows path to PowerShell.
+  2. Ensuring the port proxy setup runs **from Windows**, not Linux.
+
+---
+
+## ⚙️ Option 1: Use full path to PowerShell (simple fix)
+
+Edit your script:
+
 ```bash
-wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-linux-signing-key.gpg
+sudo nano /usr/local/bin/fixwslrdp.sh
 ```
 
-> 🔒 This places the key in the secure `/etc/apt/keyrings/` directory (modern best practice).
+Replace its content with this:
 
-#### 2. **Add the Google Chrome repository**
 ```bash
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+#!/bin/bash
+WSL_IP=$(hostname -I | awk '{print $1}')
+POWERSHELL_CMD="netsh interface portproxy add v4tov4 listenport=3389 listenaddress=0.0.0.0 connectport=3389 connectaddress=$WSL_IP"
+"/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" -Command "$POWERSHELL_CMD"
 ```
 
-#### 3. **Update package list**
+Save and run:
+
 ```bash
-sudo apt update
+sudo chmod +x /usr/local/bin/fixwslrdp.sh
+sudo /usr/local/bin/fixwslrdp.sh
 ```
 
-#### 4. **Install Google Chrome**
-Choose **one** of the following:
-
-- **Stable version (recommended):**
-  ```bash
-  sudo apt install google-chrome-stable
-  ```
-
-- *Optional:* Beta or unstable versions:
-  ```bash
-  sudo apt install google-chrome-beta
-  # or
-  sudo apt install google-chrome-unstable
-  ```
+✅ You should no longer see the “command not found” error.
 
 ---
 
-### 🚀 Launch Chrome
-- **GUI**: Search for "Google Chrome" in your applications menu.
-- **Terminal**: Run `google-chrome`
+## ⚙️ Option 2: Run from Windows side (safer for RDP stability)
+
+Instead of calling PowerShell *inside* WSL, make a `.bat` file on Windows that sets the proxy automatically.
+
+Create a file in Windows, e.g. `C:\wslrdp.bat`:
+
+```bat
+@echo off
+for /f "tokens=*" %%i in ('wsl hostname -I') do set WSL_IP=%%i
+netsh interface portproxy add v4tov4 listenport=3389 listenaddress=0.0.0.0 connectport=3389 connectaddress=%WSL_IP%
+```
+
+Then, after each reboot:
+
+* Start WSL (so Ubuntu is running)
+* Run `C:\wslrdp.bat` as **Administrator**
+
+Then connect via Remote Desktop using `localhost` (since it now forwards port 3389 to WSL2 internally).
 
 ---
 
-### 🔁 **Automatic Updates**
-Since you added the official repo, Chrome will update automatically with:
-```bash
-sudo apt update && sudo apt upgrade
-```
+## ✅ Recap
+
+| Fix      | Description                                              |
+| -------- | -------------------------------------------------------- |
+| Option 1 | Call PowerShell from inside WSL using full path          |
+| Option 2 | Create Windows `.bat` to auto-forward port (recommended) |
 
 ---
 
-### ❌ Avoid: Manual `.deb` Download (Not Recommended Long-Term)
-
-While you *can* download the `.deb` file from [https://www.google.com/chrome/](https://www.google.com/chrome/) and install it with:
-```bash
-wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-sudo apt install ./google-chrome-stable_current_amd64.deb
-```
-
-⚠️ **Problem**: This does **not** set up the repository, so you **won’t get automatic updates**. The method above is better.
-
----
-
-### 🧪 Verify Installation
-```bash
-google-chrome --version
-```
-Output example:
-```
-Google Chrome 129.0.6668.90
-```
-
----
-
-### 💡 Tip: Set Chrome as Default Browser (Optional)
-After launching Chrome:
-1. Click **⋮ (Menu)** → **Settings**
-2. Go to **Default browser** → **Make default**
-
-Or via system settings:
-- **Settings** → **Default Applications** → **Web** → Choose **Google Chrome**
-
----
-
-✅ You now have **Google Chrome installed securely with auto-updates** on Ubuntu!
-
-Let me know if you'd like help installing Chromium (open-source alternative) or configuring Chrome for development! 🌐
+Would you like me to show how to make the `.bat` file run **automatically when WSL starts**, so RDP is always ready?
